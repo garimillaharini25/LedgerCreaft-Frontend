@@ -1,1 +1,0 @@
-import{d as e}from"./index-DIdDHpAL.js";const o={async getCategories(){return(await e.get("/api/categories")).data.data},async createCategory(a){return(await e.post("/api/categories",a)).data.data},async updateCategory(a,t){return(await e.put(`/api/categories/${a}`,t)).data.data},async deleteCategory(a){await e.delete(`/api/categories/${a}`)}};export{o as c};

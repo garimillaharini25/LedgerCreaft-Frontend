@@ -1,24 +1,38 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import toast from 'react-hot-toast';
 
-// In production, VITE_API_BASE_URL must be specified via environment or default to relative path
-const baseURL = import.meta.env.VITE_API_BASE_URL
-  ? import.meta.env.VITE_API_BASE_URL
-  : import.meta.env.PROD
-  ? ''
-  : 'http://localhost:8080';
+// Resolve and sanitize backend API base URL
+const rawBaseURL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
+const baseURL = (rawBaseURL || '').trim().replace(/\/+$/, '');
+
+// Warn in console if Vercel deployment has no VITE_API_BASE_URL configured
+if (import.meta.env.PROD && !baseURL) {
+  console.warn(
+    '⚠️ [ExpenseTracker] VITE_API_BASE_URL is not set in your Vercel project environment variables!\n' +
+    'API calls are defaulting to the Vercel frontend host, causing login/API failures.\n' +
+    'To fix: Add VITE_API_BASE_URL=https://<your-render-service>.onrender.com in Vercel settings and redeploy.'
+  );
+}
 
 const api = axios.create({
   baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  timeout: 60000, // 60s timeout to accommodate Render free-tier cold starts
 });
 
 // Request interceptor: attach JWT token if present
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // If running in production with no configured backend base URL, notify user immediately
+    if (import.meta.env.PROD && !baseURL && config.url?.startsWith('/api')) {
+      toast.error('Backend URL not configured in Vercel! Please add VITE_API_BASE_URL in Vercel settings.', {
+        id: 'missing-api-url',
+        duration: 8000,
+      });
+    }
+
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -33,7 +47,17 @@ api.interceptors.response.use(
   (response) => response,
   (error: AxiosError<any>) => {
     if (!error.response) {
-      toast.error('Network connection issue. Please verify backend service.');
+      if (error.code === 'ECONNABORTED') {
+        toast.error('Request timed out. The Render server may be waking up from sleep. Please try again in 10-20 seconds.', {
+          duration: 6000,
+        });
+      } else if (import.meta.env.PROD && !baseURL) {
+        toast.error('Backend URL not configured in Vercel. Please set VITE_API_BASE_URL in Vercel environment variables.', {
+          duration: 8000,
+        });
+      } else {
+        toast.error('Cannot connect to backend server. Render service may be starting up or sleeping. Please retry shortly.');
+      }
       return Promise.reject(new Error('Network error. Backend unreachable.'));
     }
 
