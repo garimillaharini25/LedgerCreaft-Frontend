@@ -1,0 +1,1 @@
+import{j as a,c as d}from"./index-DIdDHpAL.js";const t=({children:r,className:o,...s})=>a.jsx("div",{className:d("bg-surface border border-border rounded-xl p-5 shadow-card transition-colors",o),...s,children:r});export{t as C};
